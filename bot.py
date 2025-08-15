@@ -394,8 +394,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 async def main():
-    token = os.getenv("TOKEN")
-    if not token:
+    TOKEN = os.getenv("TOKEN")
+    if not TOKEN:
         print("TOKEN environment variable belum diset.")
         return
 
@@ -409,3 +409,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
