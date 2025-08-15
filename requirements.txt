@@ -1,5 +1,4 @@
-python-telegram-bot==20.3
-aiohttp==3.8.4
-httpx==0.24.1
-beautifulsoup4==4.12.2
-requests==2.31.0
+aiohttp
+httpx
+requests
+beautifulsoup4
