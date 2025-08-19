@@ -205,10 +205,8 @@ async def create_payment_method(fullz, session, proxy_str):
 
         pk = gets(response.text, '"publishableKey":"', '",')
         nonce = gets(response.text, '<input type="hidden" id="pmpro_checkout_nonce" name="pmpro_checkout_nonce" value="', '" />')
-        if not pk:
-            return {"html": response.text, "paid": False, "error": "Failed to get pk"}
-        if not nonce:
-            return {"html": response.text, "paid": False, "error": "Failed to get nonce"}
+        if not pk or not nonce:
+            return {"html": response.text, "paid": False, "error": "Failed to get pk or nonce"}
 
         headers = {
             'accept': 'application/json',
@@ -442,3 +440,4 @@ async def init_app():
 if __name__ == "__main__":
     app = asyncio.run(init_app())
     web.run_app(app, host="0.0.0.0", port=8080)
+
