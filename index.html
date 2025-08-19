@@ -665,8 +665,8 @@ $(document).ready(function() {
       let progressPercent = Math.round(((i + 1) / lines.length) * 100);
       $('#progressChecker').css('width', progressPercent + '%').attr('aria-valuenow', progressPercent);
 
-      // Delay 20-30 detik
-      await new Promise(resolve => setTimeout(resolve, 20000 + Math.random() * 10000));
+      // Delay 1-2 menit
+      await new Promise(resolve => setTimeout(resolve, 60000 + Math.random() * 60000));
     }
 
     $('#progressWrapper').hide();
@@ -722,6 +722,7 @@ $(document).ready(function() {
 </body>
 
 </html>
+
 
 
 
