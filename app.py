@@ -200,13 +200,11 @@ async def create_payment_method(fullz, session, proxy_str):
             'https://avweather.net/membership-account/membership-checkout/',
             params=params,
             headers=headers,
-            proxies=proxies,
+            proxies=proxies
         )
 
         pk = gets(response.text, '"publishableKey":"', '",')
         nonce = gets(response.text, '<input type="hidden" id="pmpro_checkout_nonce" name="pmpro_checkout_nonce" value="', '" />')
-        if not pk or not nonce:
-            return {"html": response.text, "paid": False, "error": "Failed to get pk or nonce"}
 
         headers = {
             'accept': 'application/json',
@@ -243,8 +241,7 @@ async def create_payment_method(fullz, session, proxy_str):
             'key': pk,
         }
 
-        response = requests.post('https://api.stripe.com/v1/payment_methods', headers=headers, data=data, proxies=proxies,)
-
+        response = requests.post('https://api.stripe.com/v1/payment_methods', headers=headers, data=data, proxies=proxies)
         pm_json = response.json()
         id = pm_json.get('id')
         if not id:
@@ -317,7 +314,7 @@ async def create_payment_method(fullz, session, proxy_str):
             params=params,
             headers=headers,
             data=data,
-            proxies=proxies,
+            proxies=proxies
         )
 
         html_text = response.text
@@ -440,4 +437,5 @@ async def init_app():
 if __name__ == "__main__":
     app = asyncio.run(init_app())
     web.run_app(app, host="0.0.0.0", port=8080)
+
 
